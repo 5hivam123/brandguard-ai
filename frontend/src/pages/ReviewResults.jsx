@@ -17,7 +17,8 @@ import {
   SplitSquareVertical,
   Check,
   X,
-  FileText
+  FileText,
+  GitCompare
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -25,7 +26,7 @@ export default function ReviewResults({ reviewId, onNavigate, triggerToast }) {
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [selectedTab, setSelectedTab] = useState('split'); // 'split', 'original', 'revised', 'diff'
+  const [selectedTab, setSelectedTab] = useState('split'); // 'split', 'revised', 'original', 'diff'
   const [filterSeverity, setFilterSeverity] = useState('all'); // 'all', 'High', 'Medium', 'Low', 'unverified'
   
   // Manual text editing
@@ -251,6 +252,63 @@ export default function ReviewResults({ reviewId, onNavigate, triggerToast }) {
     return <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">{parts}</div>;
   };
 
+  // Render Diff Comparison between original and revised content
+  const renderDiffView = () => {
+    const isUnchanged = review.original_content.trim() === review.revised_content.trim();
+    const acceptedIssues = review.issues.filter(i => i.is_accepted === true);
+
+    return (
+      <div className="space-y-4 text-xs">
+        <div className="p-3 bg-slate-100 rounded-lg flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-rose-800 font-semibold">
+              <span className="w-2.5 h-2.5 bg-rose-200 border border-rose-400 rounded-xs inline-block" />
+              Problematic Original
+            </span>
+            <span className="flex items-center gap-1.5 text-emerald-800 font-semibold">
+              <span className="w-2.5 h-2.5 bg-emerald-200 border border-emerald-400 rounded-xs inline-block" />
+              Approved Revision
+            </span>
+          </div>
+          <span className="text-slate-500 font-medium">
+            {acceptedIssues.length} accepted modification(s)
+          </span>
+        </div>
+
+        {isUnchanged ? (
+          <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-1">
+            <p className="font-semibold text-slate-700">No revisions applied yet.</p>
+            <p className="text-[11px] text-slate-500">
+              Click "Accept Suggestion" on any issue card to the right to see the live diff comparison.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Before (Original with strikethroughs) */}
+            <div className="p-3.5 border border-rose-200 bg-rose-50/20 rounded-xl">
+              <div className="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-2">
+                Original Draft with Flagged Sections
+              </div>
+              <div className="leading-relaxed whitespace-pre-wrap text-slate-800">
+                {renderHighlightedOriginal()}
+              </div>
+            </div>
+
+            {/* After (Revised with highlights) */}
+            <div className="p-3.5 border border-emerald-200 bg-emerald-50/20 rounded-xl">
+              <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2">
+                Revised Compliant Copy
+              </div>
+              <div className="leading-relaxed whitespace-pre-wrap text-slate-800">
+                {review.revised_content}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-150">
       {/* Top Navigation & Status Bar */}
@@ -329,8 +387,8 @@ export default function ReviewResults({ reviewId, onNavigate, triggerToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column (5 cols): Content Viewer & Correction Workflow */}
         <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col sticky top-20">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-            <div className="flex items-center gap-1.5">
+          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setSelectedTab('split')}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
@@ -346,6 +404,15 @@ export default function ReviewResults({ reviewId, onNavigate, triggerToast }) {
                 }`}
               >
                 Revised Output
+              </button>
+              <button
+                onClick={() => setSelectedTab('diff')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1 ${
+                  selectedTab === 'diff' ? 'bg-white shadow-2xs text-blue-700 border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <GitCompare className="w-3 h-3" />
+                <span>Diff</span>
               </button>
               <button
                 onClick={() => setSelectedTab('original')}
@@ -418,6 +485,9 @@ export default function ReviewResults({ reviewId, onNavigate, triggerToast }) {
                 </div>
               </div>
             )}
+
+            {/* Diff View */}
+            {selectedTab === 'diff' && renderDiffView()}
 
             {/* Revised Only View */}
             {selectedTab === 'revised' && (

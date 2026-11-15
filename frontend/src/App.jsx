@@ -15,15 +15,42 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   const [preselectedBrandId, setPreselectedBrandId] = useState(null);
+  const [editBrandId, setEditBrandId] = useState(null);
   const [systemHealth, setSystemHealth] = useState(null);
   const [toast, setToast] = useState(null);
   const [isSeeding, setIsSeeding] = useState(false);
 
+  // Parse location hash for state persistence across browser refreshes
+  const parseHash = () => {
+    const rawHash = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+    const [page, query] = rawHash.split('?');
+    const params = new URLSearchParams(query || '');
+    return {
+      page: page || 'dashboard',
+      reviewId: params.get('id') ? Number(params.get('id')) : null,
+      brandId: params.get('brandId') ? Number(params.get('brandId')) : null,
+    };
+  };
+
   useEffect(() => {
+    // Initial sync from URL hash
+    const syncFromHash = () => {
+      const { page, reviewId, brandId } = parseHash();
+      if (page) setCurrentPage(page);
+      if (reviewId) setSelectedReviewId(reviewId);
+      if (page === 'review' && brandId) setPreselectedBrandId(brandId);
+      if (page === 'edit-brand' && brandId) setEditBrandId(brandId);
+    };
+
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
     checkHealth();
-    // Periodically verify health
+
     const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener('hashchange', syncFromHash);
+      clearInterval(interval);
+    };
   }, []);
 
   async function checkHealth() {
@@ -34,6 +61,23 @@ export default function App() {
       setSystemHealth({ status: 'offline', ai_engine_mode: 'Backend Connecting...' });
     }
   }
+
+  const navigateTo = (page, reviewId = null, brandId = null) => {
+    let hashStr = `#/${page}`;
+    if (reviewId) hashStr += `?id=${reviewId}`;
+    else if (brandId) hashStr += `?brandId=${brandId}`;
+    window.location.hash = hashStr;
+    setCurrentPage(page);
+    setSelectedReviewId(reviewId);
+    if (page === 'edit-brand') {
+      setEditBrandId(brandId);
+    } else {
+      setEditBrandId(null);
+    }
+    if (page === 'review') {
+      setPreselectedBrandId(brandId);
+    }
+  };
 
   const triggerToast = (toastObj) => {
     setToast(toastObj);
@@ -59,21 +103,6 @@ export default function App() {
     }
   };
 
-  const handleSelectReview = (reviewId) => {
-    setSelectedReviewId(reviewId);
-    setCurrentPage('results');
-  };
-
-  const handleSelectBrandForReview = (brandId) => {
-    setPreselectedBrandId(brandId);
-    setCurrentPage('review');
-  };
-
-  const handleReviewSubmitted = (reviewId) => {
-    setSelectedReviewId(reviewId);
-    setCurrentPage('results');
-  };
-
   const pageHeaders = {
     dashboard: {
       title: 'Governance Dashboard',
@@ -86,6 +115,10 @@ export default function App() {
     'create-brand': {
       title: 'Configure Brand Profile',
       subtitle: 'Define brand rules, tone attributes, compliance constraints, and banned words.'
+    },
+    'edit-brand': {
+      title: 'Edit Brand Profile',
+      subtitle: 'Modify brand configuration, tone attributes, guidelines, and terminology rules.'
     },
     review: {
       title: 'Content Submission',
@@ -112,10 +145,7 @@ export default function App() {
       {/* Dark Navy Sidebar */}
       <Sidebar
         currentPage={currentPage}
-        setCurrentPage={(page) => {
-          if (page === 'review') setPreselectedBrandId(null);
-          setCurrentPage(page);
-        }}
+        setCurrentPage={(page) => navigateTo(page)}
         systemHealth={systemHealth}
       />
 
@@ -124,10 +154,7 @@ export default function App() {
         <Header
           title={currentHeader.title}
           subtitle={currentHeader.subtitle}
-          onNewReview={currentPage !== 'review' ? () => {
-            setPreselectedBrandId(null);
-            setCurrentPage('review');
-          } : null}
+          onNewReview={currentPage !== 'review' ? () => navigateTo('review') : null}
           onSeedDemo={handleSeedDemo}
           systemHealth={systemHealth}
           isSeeding={isSeeding}
@@ -136,23 +163,25 @@ export default function App() {
         <main className="flex-1 overflow-y-auto">
           {currentPage === 'dashboard' && (
             <Dashboard
-              onNavigate={setCurrentPage}
-              onSelectReview={handleSelectReview}
+              onNavigate={(page) => navigateTo(page)}
+              onSelectReview={(id) => navigateTo('results', id)}
               triggerToast={triggerToast}
             />
           )}
 
           {currentPage === 'brands' && (
             <BrandWorkspace
-              onNavigate={setCurrentPage}
-              onSelectBrandForReview={handleSelectBrandForReview}
+              onNavigate={(page) => navigateTo(page)}
+              onSelectBrandForReview={(bId) => navigateTo('review', null, bId)}
+              onEditBrand={(bId) => navigateTo('edit-brand', null, bId)}
               triggerToast={triggerToast}
             />
           )}
 
-          {currentPage === 'create-brand' && (
+          {(currentPage === 'create-brand' || currentPage === 'edit-brand') && (
             <CreateEditBrand
-              onNavigate={setCurrentPage}
+              editBrandId={editBrandId}
+              onNavigate={(page) => navigateTo(page)}
               triggerToast={triggerToast}
             />
           )}
@@ -160,8 +189,8 @@ export default function App() {
           {currentPage === 'review' && (
             <ContentSubmission
               preselectedBrandId={preselectedBrandId}
-              onReviewSubmitted={handleReviewSubmitted}
-              onNavigate={setCurrentPage}
+              onReviewSubmitted={(id) => navigateTo('results', id)}
+              onNavigate={(page) => navigateTo(page)}
               triggerToast={triggerToast}
             />
           )}
@@ -169,15 +198,15 @@ export default function App() {
           {currentPage === 'results' && (
             <ReviewResults
               reviewId={selectedReviewId}
-              onNavigate={setCurrentPage}
+              onNavigate={(page) => navigateTo(page)}
               triggerToast={triggerToast}
             />
           )}
 
           {currentPage === 'history' && (
             <ReviewHistory
-              onSelectReview={handleSelectReview}
-              onNavigate={setCurrentPage}
+              onSelectReview={(id) => navigateTo('results', id)}
+              onNavigate={(page) => navigateTo(page)}
               triggerToast={triggerToast}
             />
           )}

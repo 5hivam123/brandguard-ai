@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building, 
   BookOpen, 
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 
-export default function CreateEditBrand({ onNavigate, triggerToast }) {
+export default function CreateEditBrand({ editBrandId, onNavigate, triggerToast }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [preferredTone, setPreferredTone] = useState('Professional, Authoritative, Trustworthy');
@@ -34,6 +34,31 @@ export default function CreateEditBrand({ onNavigate, triggerToast }) {
   ]);
 
   const [saving, setSaving] = useState(false);
+  const [loadingBrand, setLoadingBrand] = useState(false);
+
+  useEffect(() => {
+    if (editBrandId) {
+      loadBrandToEdit(editBrandId);
+    }
+  }, [editBrandId]);
+
+  async function loadBrandToEdit(id) {
+    setLoadingBrand(true);
+    try {
+      const data = await api.getBrand(id);
+      setName(data.name || '');
+      setDescription(data.description || '');
+      setPreferredTone(data.preferred_tone || '');
+      setTargetAudience(data.target_audience || '');
+      if (data.guidelines) setGuidelines(data.guidelines);
+      if (data.approved_facts) setApprovedFacts(data.approved_facts);
+      if (data.prohibited_terms) setProhibitedTerms(data.prohibited_terms);
+    } catch (err) {
+      triggerToast({ type: 'error', title: 'Error', message: 'Failed to load brand profile.' });
+    } finally {
+      setLoadingBrand(false);
+    }
+  }
 
   // Template Quick Fill
   const loadTemplate = (type) => {
@@ -130,22 +155,38 @@ export default function CreateEditBrand({ onNavigate, triggerToast }) {
 
     setSaving(true);
     try {
-      const payload = {
-        name: name.trim(),
-        description: description.trim() || null,
-        preferred_tone: preferredTone.trim(),
-        target_audience: targetAudience.trim() || null,
-        guidelines: guidelines.filter(g => g.guideline_text.trim().length > 0),
-        approved_facts: approvedFacts.filter(f => f.fact_text.trim().length > 0),
-        prohibited_terms: prohibitedTerms.filter(p => p.term.trim().length > 0)
-      };
+      if (editBrandId) {
+        // Update brand
+        await api.updateBrand(editBrandId, {
+          name: name.trim(),
+          description: description.trim() || null,
+          preferred_tone: preferredTone.trim(),
+          target_audience: targetAudience.trim() || null
+        });
+        triggerToast({
+          type: 'success',
+          title: 'Brand Updated',
+          message: `Successfully updated '${name}'.`
+        });
+      } else {
+        // Create brand
+        const payload = {
+          name: name.trim(),
+          description: description.trim() || null,
+          preferred_tone: preferredTone.trim(),
+          target_audience: targetAudience.trim() || null,
+          guidelines: guidelines.filter(g => g.guideline_text.trim().length > 0),
+          approved_facts: approvedFacts.filter(f => f.fact_text.trim().length > 0),
+          prohibited_terms: prohibitedTerms.filter(p => p.term.trim().length > 0)
+        };
 
-      await api.createBrand(payload);
-      triggerToast({
-        type: 'success',
-        title: 'Brand Created',
-        message: `Successfully configured brand '${name}'.`
-      });
+        await api.createBrand(payload);
+        triggerToast({
+          type: 'success',
+          title: 'Brand Created',
+          message: `Successfully configured brand '${name}'.`
+        });
+      }
       onNavigate('brands');
     } catch (err) {
       triggerToast({ type: 'error', title: 'Save Failed', message: err.message });
@@ -153,6 +194,15 @@ export default function CreateEditBrand({ onNavigate, triggerToast }) {
       setSaving(false);
     }
   };
+
+  if (loadingBrand) {
+    return (
+      <div className="p-12 text-center">
+        <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+        <p className="text-xs text-slate-500">Loading brand profile...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-150">
@@ -166,31 +216,35 @@ export default function CreateEditBrand({ onNavigate, triggerToast }) {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Configure Brand Profile</h2>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              {editBrandId ? `Edit Brand: ${name}` : 'Configure Brand Profile'}
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Define the brand voice, core compliance guidelines, validated facts, and disallowed terms.
             </p>
           </div>
         </div>
 
-        {/* Quick Template Fill Buttons */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-medium hidden sm:inline">Templates:</span>
-          <button
-            type="button"
-            onClick={() => loadTemplate('fintech')}
-            className="px-2.5 py-1 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition"
-          >
-            FinTech
-          </button>
-          <button
-            type="button"
-            onClick={() => loadTemplate('ecommerce')}
-            className="px-2.5 py-1 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition"
-          >
-            Eco Retail
-          </button>
-        </div>
+        {/* Quick Template Fill Buttons (only in create mode) */}
+        {!editBrandId && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-medium hidden sm:inline">Templates:</span>
+            <button
+              type="button"
+              onClick={() => loadTemplate('fintech')}
+              className="px-2.5 py-1 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition"
+            >
+              FinTech
+            </button>
+            <button
+              type="button"
+              onClick={() => loadTemplate('ecommerce')}
+              className="px-2.5 py-1 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition"
+            >
+              Eco Retail
+            </button>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -436,7 +490,7 @@ export default function CreateEditBrand({ onNavigate, triggerToast }) {
             className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-md shadow-blue-600/20 transition flex items-center gap-2 disabled:opacity-60"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? 'Saving Brand Profile...' : 'Save Brand Profile'}</span>
+            <span>{saving ? 'Saving...' : editBrandId ? 'Update Brand Profile' : 'Save Brand Profile'}</span>
           </button>
         </div>
       </form>

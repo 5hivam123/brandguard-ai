@@ -4,6 +4,7 @@ import {
   PlusCircle, 
   Search, 
   Trash2, 
+  Edit3,
   ExternalLink, 
   BookOpen, 
   CheckCircle, 
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 
-export default function BrandWorkspace({ onNavigate, onSelectBrandForReview, triggerToast }) {
+export default function BrandWorkspace({ onNavigate, onSelectBrandForReview, onEditBrand, triggerToast }) {
   const [brands, setBrands] = useState([]);
   const [selectedBrandDetail, setSelectedBrandDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -183,6 +184,19 @@ export default function BrandWorkspace({ onNavigate, onSelectBrandForReview, tri
                       <span>Review Content</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
+
+                    {onEditBrand && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditBrand(brand.id);
+                        }}
+                        className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
+                        title="Edit Brand Profile"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    )}
 
                     <button
                       onClick={(e) => handleDelete(brand.id, brand.name, e)}
