@@ -19,9 +19,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
-
-# CORS configuration
-# Explicit origins required when allow_credentials=True per W3C CORS specification
 cors_origins = settings.cors_origin_list
 if not cors_origins:
     cors_origins = [
